@@ -138,10 +138,10 @@ async fn handle_key_event(
                         app.input_backspace();
                     }
                     KeyCode::Up => {
-                        app.history_previous();
+                        app.history_next();
                     }
                     KeyCode::Down => {
-                        app.history_next();
+                        app.history_previous();
                     }
                     KeyCode::Esc => {
                         app.mode = AppMode::Viewing;
