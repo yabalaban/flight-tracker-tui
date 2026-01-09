@@ -24,6 +24,7 @@ src/
 ├── event.rs         # Terminal event handling (keyboard, tick)
 ├── flight.rs        # Flight and Airport data structures
 ├── cache.rs         # Generic TTL-based cache
+├── history.rs       # Flight history persistence
 ├── error.rs         # Error types
 └── api/
     ├── mod.rs       # API module exports
@@ -89,6 +90,7 @@ Key test areas:
 - `flight.rs` - Status parsing, struct initialization
 - `app.rs` - State management, flight list operations
 - `opensky.rs` - Callsign normalization
+- `history.rs` - History persistence, deduplication
 
 ## Common Tasks
 

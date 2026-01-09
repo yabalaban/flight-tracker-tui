@@ -39,7 +39,13 @@ fn draw_input(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let title = if app.mode == AppMode::Input {
-        " Enter Flight Number (e.g. UA123) "
+        if app.history_index.is_some() {
+            " History (↑/↓ to browse) "
+        } else if !app.history.is_empty() {
+            " Enter Flight Number (↑ for history) "
+        } else {
+            " Enter Flight Number (e.g. UA123) "
+        }
     } else {
         " Press '/' to add flight "
     };
@@ -130,25 +136,7 @@ fn draw_flight_details(frame: &mut Frame, area: Rect, app: &App) {
 
     let content = match flight {
         Some(f) => format_flight_details(f),
-        None => vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                "No flight selected",
-                Style::default().fg(Color::DarkGray),
-            )),
-            Line::from(""),
-            Line::from("Enter a flight number above to start tracking."),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Controls:",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Line::from("  /     - Add a new flight"),
-            Line::from("  j/k   - Navigate flights"),
-            Line::from("  d     - Remove selected flight"),
-            Line::from("  r     - Force refresh"),
-            Line::from("  q     - Quit"),
-        ],
+        None => format_empty_state(app),
     };
 
     let details = Paragraph::new(content)
@@ -348,6 +336,72 @@ fn format_flight_details(flight: &Flight) -> Vec<Line<'static>> {
             Style::default().fg(Color::DarkGray),
         )));
     }
+
+    lines
+}
+
+fn format_empty_state(app: &App) -> Vec<Line<'static>> {
+    let mut lines = vec![];
+
+    lines.push(Line::from(""));
+
+    // Show history if available
+    if !app.history.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "Recent Flights",
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::UNDERLINED),
+        )));
+        lines.push(Line::from(""));
+
+        for (i, entry) in app.history.entries().take(8).enumerate() {
+            let route_str = entry
+                .route
+                .as_ref()
+                .map(|r| format!(" {}", r))
+                .unwrap_or_default();
+
+            let style = if app.history_index == Some(i) {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::Cyan)
+            };
+
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(entry.flight_number.clone(), style),
+                Span::styled(route_str, Style::default().fg(Color::DarkGray)),
+            ]));
+        }
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Press ↑ in input to cycle through history",
+            Style::default().fg(Color::DarkGray),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            "No flight selected",
+            Style::default().fg(Color::DarkGray),
+        )));
+        lines.push(Line::from(""));
+        lines.push(Line::from("Enter a flight number above to start tracking."));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "Controls:",
+        Style::default().add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from("  /     - Add a new flight"));
+    lines.push(Line::from("  ↑/↓   - Browse history (in input)"));
+    lines.push(Line::from("  j/k   - Navigate flights"));
+    lines.push(Line::from("  d     - Remove selected flight"));
+    lines.push(Line::from("  r     - Force refresh"));
+    lines.push(Line::from("  q     - Quit"));
 
     lines
 }

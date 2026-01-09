@@ -11,6 +11,7 @@ A terminal-based flight tracker that displays real-time flight information. Trac
 - **Route information**: Origin and destination airports with names
 - **Schedule data**: Departure/arrival times with delay information
 - **Multi-flight tracking**: Track multiple flights simultaneously
+- **Flight history**: Quickly re-track recently searched flights with ↑/↓ keys
 - **Keyboard navigation**: Vim-style controls (j/k) plus arrow keys
 - **Smart caching**: Minimizes API calls with intelligent TTL-based caching
 - **Auto-refresh**: Automatic updates every 30 seconds
@@ -103,8 +104,10 @@ flightradar
 | `/` or `a` | Add a new flight to track |
 | `Enter` | Submit flight number |
 | `Esc` | Cancel input |
-| `j` or `↓` | Select next flight |
-| `k` or `↑` | Select previous flight |
+| `↑` | Previous history entry (in input mode) |
+| `↓` | Next history entry (in input mode) |
+| `j` or `↓` | Select next flight (in view mode) |
+| `k` or `↑` | Select previous flight (in view mode) |
 | `d` | Delete selected flight |
 | `r` | Force refresh all flights |
 | `q` | Quit |
@@ -182,6 +185,7 @@ src/
 ├── event.rs         # Keyboard/terminal event handling
 ├── flight.rs        # Flight data structures
 ├── cache.rs         # TTL-based caching
+├── history.rs       # Flight history persistence
 ├── error.rs         # Error types
 └── api/
     ├── mod.rs

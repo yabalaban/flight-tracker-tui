@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use crate::api::{FlightData, StateVector};
 use crate::flight::{Airport, Flight, FlightStatus};
+use crate::history::History;
 use chrono::Utc;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -28,6 +29,11 @@ pub struct App {
 
     pub last_api_call: Option<Instant>,
     pub update_interval_secs: u64,
+
+    /// Flight history for quick re-tracking
+    pub history: History,
+    /// Currently selected history index (for cycling through history)
+    pub history_index: Option<usize>,
 }
 
 impl Default for App {
@@ -44,6 +50,18 @@ impl Default for App {
             status_message: None,
             last_api_call: None,
             update_interval_secs: 30,
+            history: History::default(),
+            history_index: None,
+        }
+    }
+}
+
+impl App {
+    /// Create a new App with history loaded from disk.
+    pub fn new() -> Self {
+        Self {
+            history: History::load(),
+            ..Default::default()
         }
     }
 }
@@ -52,6 +70,7 @@ impl App {
     pub fn input_char(&mut self, c: char) {
         self.input_buffer.insert(self.cursor_position, c);
         self.cursor_position += 1;
+        self.history_index = None; // Reset history navigation on typing
     }
 
     pub fn input_backspace(&mut self) {
@@ -59,6 +78,7 @@ impl App {
             self.cursor_position -= 1;
             self.input_buffer.remove(self.cursor_position);
         }
+        self.history_index = None; // Reset history navigation on typing
     }
 
     pub fn submit_input(&mut self) -> Option<String> {
@@ -68,7 +88,51 @@ impl App {
         let input = self.input_buffer.clone().to_uppercase();
         self.input_buffer.clear();
         self.cursor_position = 0;
+        self.history_index = None;
         Some(input)
+    }
+
+    /// Cycle to previous history entry (up arrow in input mode).
+    pub fn history_previous(&mut self) {
+        if self.history.is_empty() {
+            return;
+        }
+
+        let entries: Vec<_> = self.history.entries().collect();
+        let new_index = match self.history_index {
+            None => 0,
+            Some(i) => (i + 1).min(entries.len() - 1),
+        };
+
+        self.history_index = Some(new_index);
+        if let Some(entry) = entries.get(new_index) {
+            self.input_buffer = entry.flight_number.clone();
+            self.cursor_position = self.input_buffer.len();
+        }
+    }
+
+    /// Cycle to next history entry (down arrow in input mode).
+    pub fn history_next(&mut self) {
+        if self.history.is_empty() {
+            return;
+        }
+
+        match self.history_index {
+            None => {}
+            Some(0) => {
+                self.history_index = None;
+                self.input_buffer.clear();
+                self.cursor_position = 0;
+            }
+            Some(i) => {
+                let entries: Vec<_> = self.history.entries().collect();
+                self.history_index = Some(i - 1);
+                if let Some(entry) = entries.get(i - 1) {
+                    self.input_buffer = entry.flight_number.clone();
+                    self.cursor_position = self.input_buffer.len();
+                }
+            }
+        }
     }
 
     pub fn select_next(&mut self) {
@@ -136,6 +200,20 @@ impl App {
         if let Some(sv) = state {
             apply_position_data(&mut flight, sv);
         }
+
+        // Build route string for history
+        let route = match (&flight.origin, &flight.destination) {
+            (Some(orig), Some(dest)) => {
+                let orig_code = orig.iata.as_deref().or(orig.icao.as_deref()).unwrap_or("???");
+                let dest_code = dest.iata.as_deref().or(dest.icao.as_deref()).unwrap_or("???");
+                Some(format!("{}→{}", orig_code, dest_code))
+            }
+            _ => None,
+        };
+
+        // Add to history and save
+        self.history.add(flight_number, route);
+        self.history.save();
 
         self.tracked_flights.push(flight);
         self.selected_index = Some(self.tracked_flights.len() - 1);

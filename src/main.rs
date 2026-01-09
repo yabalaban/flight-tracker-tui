@@ -4,6 +4,7 @@ mod cache;
 mod error;
 mod event;
 mod flight;
+mod history;
 mod ui;
 
 use std::time::{Duration, Instant};
@@ -45,7 +46,7 @@ struct ApiClients {
 }
 
 async fn run(terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
-    let mut app = App::default();
+    let mut app = App::new();
     let mut events = EventHandler::new(Duration::from_millis(250));
 
     let clients = ApiClients {
@@ -136,10 +137,17 @@ async fn handle_key_event(
                     KeyCode::Backspace => {
                         app.input_backspace();
                     }
+                    KeyCode::Up => {
+                        app.history_previous();
+                    }
+                    KeyCode::Down => {
+                        app.history_next();
+                    }
                     KeyCode::Esc => {
                         app.mode = AppMode::Viewing;
                         app.input_buffer.clear();
                         app.cursor_position = 0;
+                        app.history_index = None;
                     }
                     _ => {}
                 }
