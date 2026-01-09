@@ -1,0 +1,35 @@
+[package]
+name = "flight-tracker-tui"
+version = "0.1.0"
+edition = "2021"
+description = "A terminal-based flight tracker with real-time position and schedule data"
+license = "MIT"
+repository = "https://github.com/yourusername/flight-tracker-tui"
+keywords = ["tui", "flight", "tracker", "aviation", "terminal"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# TUI Framework
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# HTTP Client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error Handling
+thiserror = "2.0"
+color-eyre = "0.6"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Environment
+dotenvy = "0.15"
