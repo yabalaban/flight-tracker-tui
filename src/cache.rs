@@ -1,6 +1,10 @@
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct Cache<T: Clone> {
@@ -56,6 +60,119 @@ impl<T: Clone> Cache<T> {
     pub fn len(&self) -> usize {
         self.data.read().map(|d| d.len()).unwrap_or(0)
     }
+}
+
+// ============================================================================
+// Persistent Cache (saves to disk)
+// ============================================================================
+
+const CONFIG_DIR: &str = "flight-tracker-tui";
+
+#[derive(Serialize, Deserialize)]
+struct PersistentEntry<T> {
+    value: T,
+    /// Unix timestamp when the entry was inserted
+    inserted_at: u64,
+}
+
+/// A cache that persists to disk, surviving app restarts.
+#[derive(Clone)]
+pub struct PersistentCache<T>
+where
+    T: Clone + Serialize + for<'de> Deserialize<'de>,
+{
+    data: Arc<RwLock<HashMap<String, PersistentEntry<T>>>>,
+    ttl_secs: u64,
+    file_name: String,
+}
+
+impl<T> PersistentCache<T>
+where
+    T: Clone + Serialize + for<'de> Deserialize<'de>,
+{
+    pub fn new(ttl: Duration, file_name: &str) -> Self {
+        let cache = Self {
+            data: Arc::new(RwLock::new(HashMap::new())),
+            ttl_secs: ttl.as_secs(),
+            file_name: file_name.to_string(),
+        };
+        cache.load();
+        cache
+    }
+
+    pub fn get(&self, key: &str) -> Option<T> {
+        let data = self.data.read().ok()?;
+        let entry = data.get(key)?;
+
+        let now = current_timestamp();
+        if now.saturating_sub(entry.inserted_at) < self.ttl_secs {
+            Some(entry.value.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn set(&self, key: String, value: T) {
+        if let Ok(mut data) = self.data.write() {
+            data.insert(
+                key,
+                PersistentEntry {
+                    value,
+                    inserted_at: current_timestamp(),
+                },
+            );
+        }
+        self.save();
+    }
+
+    fn config_path(&self) -> Option<PathBuf> {
+        dirs_config_dir().map(|mut p| {
+            p.push(CONFIG_DIR);
+            p.push(&self.file_name);
+            p
+        })
+    }
+
+    fn load(&self) {
+        if let Some(path) = self.config_path() {
+            if let Ok(contents) = fs::read_to_string(&path) {
+                if let Ok(loaded) = serde_json::from_str::<HashMap<String, PersistentEntry<T>>>(&contents) {
+                    if let Ok(mut data) = self.data.write() {
+                        *data = loaded;
+                    }
+                }
+            }
+        }
+    }
+
+    fn save(&self) {
+        if let Some(path) = self.config_path() {
+            if let Some(parent) = path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            if let Ok(data) = self.data.read() {
+                if let Ok(contents) = serde_json::to_string_pretty(&*data) {
+                    let _ = fs::write(&path, contents);
+                }
+            }
+        }
+    }
+}
+
+fn current_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn dirs_config_dir() -> Option<PathBuf> {
+    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+        return Some(PathBuf::from(xdg));
+    }
+    std::env::var("HOME")
+        .ok()
+        .map(|home| PathBuf::from(home).join(".config"))
 }
 
 #[cfg(test)]

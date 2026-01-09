@@ -1,24 +1,26 @@
 //! AviationStack API client for flight schedule data.
 //!
 //! Provides route information, departure/arrival times, and delay data.
+//! Uses persistent disk cache to minimize API calls (free tier: 100/month).
 
 use std::time::Duration;
 
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::cache::Cache;
+use crate::cache::PersistentCache;
 use crate::error::AppError;
 
 const AVIATIONSTACK_BASE_URL: &str = "http://api.aviationstack.com/v1";
-const CACHE_TTL_SECS: u64 = 3600; // 1 hour - schedule data rarely changes
+const CACHE_TTL_SECS: u64 = 86400; // 24 hours - schedule data rarely changes
+const CACHE_FILE: &str = "schedule_cache.json";
 
 /// Client for the AviationStack API.
 #[derive(Clone)]
 pub struct AviationStackClient {
     client: Client,
     api_key: Option<String>,
-    cache: Cache<Option<FlightData>>,
+    cache: PersistentCache<Option<FlightData>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,7 +29,7 @@ pub struct AviationStackResponse {
 }
 
 /// Flight data from AviationStack API.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub struct FlightData {
     pub flight_status: Option<String>,
@@ -39,7 +41,7 @@ pub struct FlightData {
 }
 
 /// Airport information including schedule times.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AirportInfo {
     pub airport: Option<String>,
     pub iata: Option<String>,
@@ -51,7 +53,7 @@ pub struct AirportInfo {
 }
 
 /// Airline information.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub struct AirlineInfo {
     pub name: Option<String>,
@@ -59,7 +61,7 @@ pub struct AirlineInfo {
 }
 
 /// Flight number information.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub struct FlightInfo {
     pub iata: Option<String>,
@@ -68,7 +70,7 @@ pub struct FlightInfo {
 }
 
 /// Aircraft information.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AircraftInfo {
     pub registration: Option<String>,
     pub iata: Option<String>,
@@ -80,7 +82,7 @@ impl AviationStackClient {
         Self {
             client: Client::new(),
             api_key: std::env::var("AVIATIONSTACK_API_KEY").ok(),
-            cache: Cache::new(Duration::from_secs(CACHE_TTL_SECS)),
+            cache: PersistentCache::new(Duration::from_secs(CACHE_TTL_SECS), CACHE_FILE),
         }
     }
 
